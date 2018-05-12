@@ -260,7 +260,7 @@ Resources:
                   - 'cloudformation:ExecuteChangeSet'
                 Effect: Allow
                 Resource:
-                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ProjectId}-lambda/*
+                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ProjectId}*
               - Action:
                   - 'iam:PassRole'
                 Effect: Allow
@@ -329,7 +329,7 @@ Resources:
                    "apiHost": "${apiHost}",
                    "apiBasePath": "${apiBasePath}"}
                 RoleArn: !GetAtt CloudFormationTrustRole.Arn
-                StackName: !Sub ${ProjectId}-lambda
+                StackName: !Sub ${ProjectId}-api
                 TemplatePath: !Sub ${ProjectId}-BuildArtifact::template-export.yml
               InputArtifacts:
                 - Name: !Sub ${ProjectId}-BuildArtifact
@@ -344,7 +344,7 @@ Resources:
               Configuration:
                 ActionMode: CHANGE_SET_EXECUTE
                 ChangeSetName: pipeline-changeset
-                StackName: !Sub ${ProjectId}-lambda
+                StackName: !Sub ${ProjectId}-api
               InputArtifacts: []
               Name: ExecuteChangeSet
               OutputArtifacts: []

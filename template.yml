@@ -26,7 +26,7 @@ Resources:
   LambdaFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub ${ProjectId}-lambda
+      FunctionName: !Sub ${ProjectId}-action-notify-lambda
       Description: !Sub ${ProjectId} Lambda Function
       Handler: index.handler
       Runtime: python3.6
