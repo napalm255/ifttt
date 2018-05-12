@@ -10,8 +10,10 @@ phases:
   pre_build:
     commands:
       - pylint -r n actions/notify/index.py
+      - pylint -r n actions/delay/index.py
       - flake8 index.py
       - pydocstyle -v actions/notify/index.py
+      - pydocstyle -v actions/delay/index.py
       - yamllint .
   build:
     commands:
