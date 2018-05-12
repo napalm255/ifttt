@@ -23,11 +23,11 @@ Outputs:
     Value: !Sub ${ProjectId}-default-user
 
 Resources:
-  LambdaFunction:
+  LambdaActionNotify:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub ${ProjectId}-action-notify-lambda
-      Description: !Sub ${ProjectId} Lambda Function
+      Description: !Sub ${ProjectId} Action Notify Lambda Function
       Handler: index.handler
       Runtime: python3.6
       CodeUri: ./actions/notify
@@ -42,6 +42,28 @@ Resources:
           Type: Api
           Properties:
             Path: /v1/actions/notify
+            Method: post
+            RestApiId: !Ref ApiGateway
+
+  LambdaActionDelay:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${ProjectId}-action-delay-lambda
+      Description: !Sub ${ProjectId} Action Delay Lambda Function
+      Handler: index.handler
+      Runtime: python3.6
+      CodeUri: ./actions/delay
+      Timeout: 15
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AmazonSSMReadOnlyAccess
+        - AmazonRoute53FullAccess
+        - AmazonAPIGatewayAdministrator
+      Events:
+        PostEvent:
+          Type: Api
+          Properties:
+            Path: /v1/actions/delay
             Method: post
             RestApiId: !Ref ApiGateway
 
@@ -111,13 +133,61 @@ Resources:
                       type: "string"
                     Access-Control-Allow-Origin:
                       type: "string"
+          /v1/actions/delay:
+            post:
+              responses: {}
+              security:
+                - api_key: []
+              x-amazon-apigateway-integration:
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectId}-action-delay-lambda/invocations"
+                passthroughBehavior: "when_no_match"
+                httpMethod: "POST"
+                type: "aws_proxy"
+            options:
+              summary: CORS support
+              description: |
+                Enable CORS by returning correct headers
+              consumes:
+                - application/json
+              produces:
+                - application/json
+              tags:
+                - CORS
+              x-amazon-apigateway-integration:
+                type: mock
+                requestTemplates:
+                  application/json: |
+                    {
+                      "statusCode" : 200
+                    }
+                responses:
+                  "default":
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Api-Key'"
+                      method.response.header.Access-Control-Allow-Methods: "'POST, OPTIONS'"
+                      method.response.header.Access-Control-Allow-Origin: !Sub "'https://${apiHost}'"
+                    responseTemplates:
+                      application/json: |
+                        {}
+              responses:
+                '200':
+                  description: Default response for CORS method
+                  headers:
+                    Access-Control-Allow-Headers:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Origin:
+                      type: "string"
 
   ApiGatewayUsagePlan:
     Type: AWS::ApiGateway::UsagePlan
     DependsOn:
       - ApiGateway
       - ApiGatewayProdStage
-      - LambdaFunction
+      - LambdaActionNotify
+      - LambdaActionDelay
     Properties:
       UsagePlanName: !Ref ProjectId
       Description: !Sub ${ProjectId} usage plan
@@ -154,7 +224,8 @@ Resources:
     DependsOn:
       - ApiGateway
       - ApiGatewayProdStage
-      - LambdaFunction
+      - LambdaActionNotify
+      - LambdaActionDelay
     Properties:
       BasePath: !Ref apiBasePath
       DomainName: !Ref apiHost
