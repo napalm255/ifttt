@@ -1,0 +1,162 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Transform:
+  - AWS::Serverless-2016-10-31
+Description: Python Webservices for IFTTT
+
+Parameters:
+  ProjectId:
+    Type: String
+    Description: ProjectId used to associate resources
+  apiHost:
+    Type: String
+    Description: Api Gateway Host
+  apiBasePath:
+    Type: String
+    Description: Api Gateway Base Path
+
+Outputs:
+  ApiGatewayDefaultUser:
+    Description: Api Gateway Default User
+    Export:
+      Name: !Sub ${ProjectId}-${AWS::Region}-ApiGatewayDefaultUser
+    Value: !Sub ${ProjectId}-default-user
+
+Resources:
+  LambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${ProjectId}-lambda
+      Description: !Sub ${ProjectId} Lambda Function
+      Handler: index.handler
+      Runtime: python3.6
+      CodeUri: ./actions/notify
+      Timeout: 15
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AmazonSSMReadOnlyAccess
+        - AmazonRoute53FullAccess
+        - AmazonAPIGatewayAdministrator
+      Events:
+        PostEvent:
+          Type: Api
+          Properties:
+            Path: /v1/actions/notify
+            Method: post
+            RestApiId: !Ref ApiGateway
+
+  ApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      DefinitionBody:
+        swagger: "2.0"
+        info:
+          version: "1.0"
+          title: !Sub ${ProjectId}-api
+        host: !Ref apiHost
+        basePath: !Sub "/${apiBasePath}"
+        schemes:
+          - "https"
+        securityDefinitions:
+          api_key:
+            type: "apiKey"
+            name: "x-api-key"
+            in: "header"
+        paths:
+          /v1/actions/notify:
+            post:
+              responses: {}
+              security:
+                - api_key: []
+              x-amazon-apigateway-integration:
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectId}-lambda/invocations"
+                passthroughBehavior: "when_no_match"
+                httpMethod: "POST"
+                type: "aws_proxy"
+            options:
+              summary: CORS support
+              description: |
+                Enable CORS by returning correct headers
+              consumes:
+                - application/json
+              produces:
+                - application/json
+              tags:
+                - CORS
+              x-amazon-apigateway-integration:
+                type: mock
+                requestTemplates:
+                  application/json: |
+                    {
+                      "statusCode" : 200
+                    }
+                responses:
+                  "default":
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Api-Key'"
+                      method.response.header.Access-Control-Allow-Methods: "'POST, OPTIONS'"
+                      method.response.header.Access-Control-Allow-Origin: !Sub "'https://${apiHost}'"
+                    responseTemplates:
+                      application/json: |
+                        {}
+              responses:
+                '200':
+                  description: Default response for CORS method
+                  headers:
+                    Access-Control-Allow-Headers:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Origin:
+                      type: "string"
+
+  ApiGatewayUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    DependsOn:
+      - ApiGateway
+      - ApiGatewayProdStage
+      - LambdaFunction
+    Properties:
+      UsagePlanName: !Ref ProjectId
+      Description: !Sub ${ProjectId} usage plan
+      Quota:
+        Limit: 500
+        Period: DAY
+      Throttle:
+        BurstLimit: 20
+        RateLimit: 10
+      ApiStages:
+        - ApiId: !Ref ApiGateway
+          Stage: Prod
+
+  ApiGatewayDefaultApiKey:
+    Type: "AWS::ApiGateway::ApiKey"
+    DependsOn:
+      - ApiGatewayUsagePlan
+    Properties:
+      Name: !Sub ${ProjectId}-default-user
+      Description: bMmAe46ekBfZ2E4h
+      Enabled: true
+
+  ApiGatewayDefaultUsagePlanKey:
+    Type: "AWS::ApiGateway::UsagePlanKey"
+    DependsOn:
+      - ApiGatewayDefaultApiKey
+    Properties:
+      KeyId: !Ref ApiGatewayDefaultApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref ApiGatewayUsagePlan
+
+  ApiGatewayMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    DependsOn:
+      - ApiGateway
+      - ApiGatewayProdStage
+      - LambdaFunction
+    Properties:
+      BasePath: !Ref apiBasePath
+      DomainName: !Ref apiHost
+      RestApiId: !Ref ApiGateway
+      Stage: Prod

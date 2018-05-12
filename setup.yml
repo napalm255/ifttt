@@ -1,0 +1,50 @@
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+
+  vars:
+    project_id: ifttt
+
+  vars_prompt:
+    - name: github_userid
+      prompt: GitHub UserId
+      private: false
+    - name: github_username
+      prompt: GitHub Username
+      private: false
+    - name: github_token
+      prompt: GitHub OAUTH Token
+      private: false
+    - name: github_repo_name
+      prompt: GitHub Repository Name
+      private: false
+    - name: github_repo_branch
+      prompt: GitHub Repository Branch
+      private: false
+      default: master
+    - name: api_hostname
+      prompt: API Hostname (ex. api.domain.com)
+      private: false
+    - name: api_basepath
+      prompt: API Base Path (ex. ddns)
+      private: false
+      default: ddns
+
+  tasks:
+    - name: deploy cloudformation template
+      cloudformation:
+        template: pipeline.yml
+        stack_name: "{{ project_id }}"
+        state: "{{ state | default('present') }}"
+        disable_rollback: false
+        template_parameters:
+          RepositoryBranch: "{{ github_repo_branch }}"
+          RepositoryName: "{{ github_repo_name }}"
+          RepositoryProviderUserId: "{{ github_userid }}"
+          RepositoryProviderUsername: "{{ github_username }}"
+          RepositoryToken: "{{ github_token }}"
+          apiHost: "{{ api_hostname }}"
+          apiBasePath: "{{ api_basepath }}"
+        tags:
+          Stack: "{{ project_id }}"

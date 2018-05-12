@@ -1,0 +1,6 @@
+*.swp
+*.pyc
+*.retry
+template-export.yml
+play.yml
+setup.sh
